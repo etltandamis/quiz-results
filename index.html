@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Result & Certificate Portal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --secondary: #1e40af; --success: #059669; --bg: #f8fafc; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 100%; max-width: 450px; text-align: center; border-top: 5px solid var(--primary); }
+        h1 { color: #1e293b; margin-bottom: 0.5rem; font-size: 1.5rem; }
+        p { color: #64748b; margin-bottom: 1.5rem; }
+        input { width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; box-sizing: border-box; font-size: 1rem; }
+        button { width: 100%; padding: 0.8rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 1rem; transition: 0.2s; }
+        .btn-search { background: var(--primary); color: white; }
+        .btn-search:hover { background: var(--secondary); }
+        #resultZone { display: none; margin-top: 2rem; padding: 1.5rem; border-radius: 0.5rem; background: #f1f5f9; text-align: left; }
+        .result-item { margin-bottom: 0.5rem; color: #334155; }
+        .btn-cert { background: var(--success); color: white; margin-top: 1rem; }
+        .error { color: #dc2626; font-size: 0.9rem; margin-top: 1rem; display: none; }
+        .loading { display: none; color: var(--primary); font-weight: 500; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Result Portal</h1>
+    <p>Enter your credentials to access your score.</p>
+    
+    <input type="text" id="rollId" placeholder="Enter Roll Number">
+    <button class="btn-search" onclick="fetchResult()">View Result</button>
+    
+    <div id="loader" class="loading">Searching database...</div>
+    <div id="errorMsg" class="error">No record found. Please check your ID.</div>
+
+    <div id="resultZone">
+        <div class="result-item"><strong>Name:</strong> <span id="outName"></span></div>
+        <div class="result-item"><strong>Score:</strong> <span id="outScore"></span></div>
+        <div class="result-item"><strong>Grade:</strong> <span id="outGrade"></span></div>
+        <button class="btn-cert" onclick="downloadCert()">Download Certificate</button>
+    </div>
+</div>
+
+<script>
+    // 1. YOUR GOOGLE SHEET CSV LINK HERE
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTyGWVQ23LivMOyascVcr2cq9uRRXkj-VgkZV_n0q76efr8WZPC_KbACLdr0TQql-Lre_wBQkpI9fIc/pub?output=csv'; 
+    let activeUser = null;
+
+    async function fetchResult() {
+        const id = document.getElementById('rollId').value.trim();
+        const resZone = document.getElementById('resultZone');
+        const err = document.getElementById('errorMsg');
+        const loader = document.getElementById('loader');
+
+        if(!id) return;
+
+        err.style.display = 'none';
+        resZone.style.display = 'none';
+        loader.style.display = 'block';
+
+        try {
+            const response = await fetch(CSV_URL);
+            const text = await response.text();
+            const rows = text.split('\n').map(r => r.split(','));
+            
+            // Search logic (ID is column 0)
+            const match = rows.find(r => r[0].trim() === id);
+
+            if(match) {
+                activeUser = { name: match[1], score: match[2], grade: match[3] };
+                document.getElementById('outName').innerText = activeUser.name;
+                document.getElementById('outScore').innerText = activeUser.score;
+                document.getElementById('outGrade').innerText = activeUser.grade;
+                resZone.style.display = 'block';
+            } else {
+                err.style.display = 'block';
+            }
+        } catch (e) {
+            alert("Error connecting to database.");
+        } finally {
+            loader.style.display = 'none';
+        }
+    }
+
+    function downloadCert() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape' });
+        
+        // Background Border Image
+        const bg = "https://i.imgur.com/83p7Z8W.png"; 
+        const img = new Image();
+        img.src = bg;
+        img.crossOrigin = "Anonymous";
+
+        img.onload = function() {
+            doc.addImage(img, 'PNG', 0, 0, 297, 210);
+            doc.setFont("times", "italic");
+            doc.setFontSize(40);
+            doc.text("Certificate of Achievement", 148, 60, {align: 'center'});
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(20);
+            doc.text("Presented to", 148, 90, {align: 'center'});
+            
+            doc.setFontSize(30);
+            doc.setFont("helvetica", "bold");
+            doc.text(activeUser.name.toUpperCase(), 148, 110, {align: 'center'});
+            
+            doc.setFontSize(18);
+            doc.setFont("helvetica", "normal");
+            doc.text(`For outstanding performance with a score of ${activeUser.score}`, 148, 135, {align: 'center'});
+            
+            doc.save(`${activeUser.name}_Certificate.pdf`);
+        };
+    }
+</script>
+</body>
+</html>
